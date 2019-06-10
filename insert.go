@@ -22,6 +22,9 @@ type insertData struct {
 	Values            [][]interface{}
 	Suffixes          exprs
 	Select            *SelectBuilder
+
+	OnConflictFormat     OnConflictFormat
+	OnConflictSetClauses []setClause
 }
 
 func (d *insertData) Exec() (sql.Result, error) {
@@ -92,12 +95,37 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 		return
 	}
 
+	if len(d.OnConflictSetClauses) > 0 {
+		sql.WriteString(" ON CONFLICT DO UPDATE SET ")
+
+		setSqls := make([]string, len(d.OnConflictSetClauses))
+		for i, setClause := range d.OnConflictSetClauses {
+			var valSql string
+			e, isExpr := setClause.value.(expr)
+			if isExpr {
+				valSql = e.sql
+				args = append(args, e.args...)
+			} else {
+				valSql = "?"
+				args = append(args, setClause.value)
+			}
+			setSqls[i] = fmt.Sprintf("%s = %s", setClause.column, valSql)
+		}
+		sql.WriteString(strings.Join(setSqls, ", "))
+	}
+
 	if len(d.Suffixes) > 0 {
 		sql.WriteString(" ")
 		args, _ = d.Suffixes.AppendToSql(sql, " ", args)
 	}
 
 	sqlStr, err = d.PlaceholderFormat.ReplacePlaceholders(sql.String())
+	if err != nil {
+		return
+	}
+
+	sqlStr, err = d.OnConflictFormat.Replace(sqlStr)
+
 	return
 }
 
@@ -160,6 +188,12 @@ func init() {
 // query.
 func (b InsertBuilder) PlaceholderFormat(f PlaceholderFormat) InsertBuilder {
 	return builder.Set(b, "PlaceholderFormat", f).(InsertBuilder)
+}
+
+// OnConflictFormat sets OnConflictFormat (e.g. ON CONFLICT/ON DUPLICATE KEY)
+// for the query.
+func (b InsertBuilder) OnConflictFormat(f OnConflictFormat) InsertBuilder {
+	return builder.Set(b, "OnConflictFormat", f).(InsertBuilder)
 }
 
 // Runner methods
@@ -255,4 +289,25 @@ func (b InsertBuilder) SetMap(clauses map[string]interface{}) InsertBuilder {
 // If Values and Select are used, then Select has higher priority
 func (b InsertBuilder) Select(sb SelectBuilder) InsertBuilder {
 	return builder.Set(b, "Select", &sb).(InsertBuilder)
+}
+
+// OnConflictSet adds ON CONFLICT DO UPDATE SET clauses to the query.
+func (b InsertBuilder) OnConflictSet(column string, value interface{}) InsertBuilder {
+	return builder.Append(b, "OnConflictSetClauses", setClause{column: column, value: value}).(InsertBuilder)
+}
+
+// OnConflictSetSetMap is a convenience method which calls .Set for each key/value pair in clauses.
+func (b InsertBuilder) OnConflictSetSetMap(clauses map[string]interface{}) InsertBuilder {
+	keys := make([]string, len(clauses))
+	i := 0
+	for key := range clauses {
+		keys[i] = key
+		i++
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		val, _ := clauses[key]
+		b = b.OnConflictSet(key, val)
+	}
+	return b
 }
