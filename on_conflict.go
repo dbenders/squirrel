@@ -1,24 +1,38 @@
 package squirrel
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type OnConflictFormat interface {
-	Replace(sql string) (string, error)
+	String(cols []string) string
 }
 
 var (
 	OnConflict = onConflictFormat{}
 
+	OnConflictWithKey = onConflictWithKeyFormat{}
+
 	OnDuplicate = onDuplicateFormat{}
 )
 
 type onConflictFormat struct{}
+type onConflictWithKeyFormat struct{}
 type onDuplicateFormat struct{}
 
-func (onConflictFormat) Replace(sql string) (string, error) {
-	return sql, nil
+func (onConflictFormat) String(cols []string) string {
+	return " ON CONFLICT DO UPDATE SET "
 }
 
-func (onDuplicateFormat) Replace(sql string) (string, error) {
-	return strings.Replace(sql, "ON CONFLICT DO UPDATE SET", "ON DUPLICATE KEY UPDATE", -1), nil
+func (onConflictWithKeyFormat) String(cols []string) string {
+	key := ""
+	if len(cols) > 0 {
+		key = fmt.Sprintf("(%s)", strings.Join(cols, ","))
+	}
+	return fmt.Sprintf(" ON CONFLICT%s DO UPDATE SET ", key)
+}
+
+func (onDuplicateFormat) String(cols []string) string {
+	return " ON DUPLICATE KEY UPDATE "
 }

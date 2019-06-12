@@ -24,6 +24,7 @@ type insertData struct {
 	Select            *SelectBuilder
 
 	OnConflictFormat     OnConflictFormat
+	OnConflictKey        []string
 	OnConflictSetClauses []setClause
 }
 
@@ -96,7 +97,7 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 	}
 
 	if len(d.OnConflictSetClauses) > 0 {
-		sql.WriteString(" ON CONFLICT DO UPDATE SET ")
+		sql.WriteString(d.OnConflictFormat.String(d.OnConflictKey))
 
 		setSqls := make([]string, len(d.OnConflictSetClauses))
 		for i, setClause := range d.OnConflictSetClauses {
@@ -120,12 +121,6 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 	}
 
 	sqlStr, err = d.PlaceholderFormat.ReplacePlaceholders(sql.String())
-	if err != nil {
-		return
-	}
-
-	sqlStr, err = d.OnConflictFormat.Replace(sqlStr)
-
 	return
 }
 
@@ -291,7 +286,15 @@ func (b InsertBuilder) Select(sb SelectBuilder) InsertBuilder {
 	return builder.Set(b, "Select", &sb).(InsertBuilder)
 }
 
-// OnConflictSet adds ON CONFLICT DO UPDATE SET clauses to the query.
+// OnConflictKey specify the primary key or columns for the ON CONFLICT DO UPDATE SET clause.
+func (b InsertBuilder) OnConflictKey(columns ...string) InsertBuilder {
+	for _, col := range columns {
+		b = builder.Append(b, "OnConflictKey", col).(InsertBuilder)
+	}
+	return b
+}
+
+// OnConflictSet adds ON CONFLICT DO UPDATE SET clause to the query.
 func (b InsertBuilder) OnConflictSet(column string, value interface{}) InsertBuilder {
 	return builder.Append(b, "OnConflictSetClauses", setClause{column: column, value: value}).(InsertBuilder)
 }
