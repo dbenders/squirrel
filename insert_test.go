@@ -90,3 +90,43 @@ func TestInsertBuilderSelect(t *testing.T) {
 	expectedArgs := []interface{}{1}
 	assert.Equal(t, expectedArgs, args)
 }
+
+func TestInsertOnConflictBuilderToSql(t *testing.T) {
+	b := Insert("").
+		Into("a").
+		Columns("b", "c").
+		Values(1, 2).
+		Values(3, Expr("? + 1", 4)).
+		OnConflictSet("b", 1).
+		OnConflictSet("c", 2)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSQL :=
+		"INSERT INTO a (b,c) VALUES (?,?),(?,? + 1) " +
+			"ON CONFLICT DO UPDATE SET b = ?, c = ?"
+	assert.Equal(t, expectedSQL, sql)
+
+	expectedArgs := []interface{}{1, 2, 3, 4, 1, 2}
+	assert.Equal(t, expectedArgs, args)
+}
+
+func TestInsertBuilderOnConflictFormat(t *testing.T) {
+	b := Insert("test").Values(1, 2).OnConflictSet("a", 1)
+
+	sql, _, _ := b.OnConflictFormat(OnConflict).ToSql()
+	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON CONFLICT DO UPDATE SET a = ?", sql)
+
+	sql, _, _ = b.OnConflictFormat(OnDuplicate).ToSql()
+	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON DUPLICATE KEY UPDATE a = ?", sql)
+
+	sql, _, _ = b.OnConflictFormat(OnConflictWithKey).OnConflictKey("id", "method").ToSql()
+	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON CONFLICT (id,method) DO UPDATE SET a = ?", sql)
+
+	b = Insert("test").Values(1, 2).OnConflictFormat(OnDuplicate)
+
+	sql, _, _ = b.OnConflictFormat(OnConflict).ToSql()
+	assert.Equal(t, "INSERT INTO test VALUES (?,?)", sql)
+
+}

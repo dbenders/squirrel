@@ -12,7 +12,7 @@ func (b StatementBuilderType) Select(columns ...string) SelectBuilder {
 
 // Insert returns a InsertBuilder for this StatementBuilderType.
 func (b StatementBuilderType) Insert(into string) InsertBuilder {
-	return InsertBuilder(b).Into(into)
+	return InsertBuilder(b).OnConflictFormat(OnConflict).Into(into)
 }
 
 // Update returns a UpdateBuilder for this StatementBuilderType.
