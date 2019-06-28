@@ -3,8 +3,8 @@ package squirrel
 import "errors"
 
 type Dialect interface {
-	Now() Now
-	UnixNow() UnixNow
+	Now() expr
+	UnixNow() expr
 	PlaceholderFormat() PlaceholderFormat
 	OnConflictFormat() OnConflictFormat
 }
@@ -28,57 +28,23 @@ var (
 // Now is the current datetime
 // Ex:
 //     .Where(Lt{"ts": Now()})
-type Now expr
+func (d mySQLDialect) Now() expr      { return Expr("now()") }
+func (d postgreSQLDialect) Now() expr { return Expr("now()") }
+func (d sqlite3Dialect) Now() expr    { return Expr("datetime('now')") }
 
 // UnixNow is the current datetime in unix epoch format
 // Ex:
 //     .Where(Lt{"ts": UnixNow()})
-type UnixNow expr
+func (d mySQLDialect) UnixNow() expr      { return Expr("unix_timestamp()") }
+func (d postgreSQLDialect) UnixNow() expr { return Expr("extract(epoch from now())") }
+func (d sqlite3Dialect) UnixNow() expr    { return Expr("strftime('%s', 'now')") }
 
-func (d mySQLDialect) Now() Now {
-	return Now{sql: "now()"}
-}
+// PlacementHolderFormat is the standard placement format for each dialect
+func (d mySQLDialect) PlaceholderFormat() PlaceholderFormat      { return Question }
+func (d postgreSQLDialect) PlaceholderFormat() PlaceholderFormat { return Dollar }
+func (d sqlite3Dialect) PlaceholderFormat() PlaceholderFormat    { return Question }
 
-func (d mySQLDialect) UnixNow() UnixNow {
-	return UnixNow{sql: "unix_timestamp()"}
-}
-
-func (d mySQLDialect) PlaceholderFormat() PlaceholderFormat {
-	return Question
-}
-
-func (d mySQLDialect) OnConflictFormat() OnConflictFormat {
-	return OnDuplicate
-}
-
-func (d postgreSQLDialect) Now() Now {
-	return Now{sql: "now()"}
-}
-
-func (d postgreSQLDialect) UnixNow() UnixNow {
-	return UnixNow{sql: "extract(epoch from now())"}
-}
-
-func (d postgreSQLDialect) PlaceholderFormat() PlaceholderFormat {
-	return Dollar
-}
-
-func (d postgreSQLDialect) OnConflictFormat() OnConflictFormat {
-	return OnConflict
-}
-
-func (d sqlite3Dialect) Now() Now {
-	return Now{sql: "datetime('now')"}
-}
-
-func (d sqlite3Dialect) UnixNow() UnixNow {
-	return UnixNow{sql: "strftime('%s', 'now')"}
-}
-
-func (d sqlite3Dialect) PlaceholderFormat() PlaceholderFormat {
-	return Question
-}
-
-func (d sqlite3Dialect) OnConflictFormat() OnConflictFormat {
-	return OnConflictWithKey
-}
+// OnConflictFormat is the standard on conflict format for each dialect
+func (d mySQLDialect) OnConflictFormat() OnConflictFormat      { return OnDuplicate }
+func (d postgreSQLDialect) OnConflictFormat() OnConflictFormat { return OnConflict }
+func (d sqlite3Dialect) OnConflictFormat() OnConflictFormat    { return OnConflictWithKey }
