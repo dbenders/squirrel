@@ -25,30 +25,22 @@ var (
 	ErrInvalidDialect = errors.New("invalid dialect")
 )
 
-type funcNoParams struct {
-	sql string
-}
-
-func (f funcNoParams) ToSql() (string, []interface{}, error) {
-	return f.sql, nil, nil
-}
-
 // Now is the current datetime
 // Ex:
 //     .Where(Lt{"ts": Now()})
-type Now funcNoParams
+type Now expr
 
 // UnixNow is the current datetime in unix epoch format
 // Ex:
 //     .Where(Lt{"ts": UnixNow()})
-type UnixNow funcNoParams
+type UnixNow expr
 
 func (d mySQLDialect) Now() Now {
-	return Now{"now()"}
+	return Now{sql: "now()"}
 }
 
 func (d mySQLDialect) UnixNow() UnixNow {
-	return UnixNow{"unix_timestamp()"}
+	return UnixNow{sql: "unix_timestamp()"}
 }
 
 func (d mySQLDialect) PlaceholderFormat() PlaceholderFormat {
@@ -60,11 +52,11 @@ func (d mySQLDialect) OnConflictFormat() OnConflictFormat {
 }
 
 func (d postgreSQLDialect) Now() Now {
-	return Now{"now()"}
+	return Now{sql: "now()"}
 }
 
 func (d postgreSQLDialect) UnixNow() UnixNow {
-	return UnixNow{"extract(epoch from now())"}
+	return UnixNow{sql: "extract(epoch from now())"}
 }
 
 func (d postgreSQLDialect) PlaceholderFormat() PlaceholderFormat {
@@ -76,11 +68,11 @@ func (d postgreSQLDialect) OnConflictFormat() OnConflictFormat {
 }
 
 func (d sqlite3Dialect) Now() Now {
-	return Now{"datetime('now')"}
+	return Now{sql: "datetime('now')"}
 }
 
 func (d sqlite3Dialect) UnixNow() UnixNow {
-	return UnixNow{"strftime('%s', 'now')"}
+	return UnixNow{sql: "strftime('%s', 'now')"}
 }
 
 func (d sqlite3Dialect) PlaceholderFormat() PlaceholderFormat {
