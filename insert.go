@@ -22,6 +22,10 @@ type insertData struct {
 	Values            [][]interface{}
 	Suffixes          exprs
 	Select            *SelectBuilder
+
+	OnConflictFormat     OnConflictFormat
+	OnConflictKey        []string
+	OnConflictSetClauses []setClause
 }
 
 func (d *insertData) Exec() (sql.Result, error) {
@@ -92,6 +96,10 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 		return
 	}
 
+	if len(d.OnConflictSetClauses) > 0 {
+		args, err = d.appendOnConflictToSQL(sql, args)
+	}
+
 	if len(d.Suffixes) > 0 {
 		sql.WriteString(" ")
 		args, _ = d.Suffixes.AppendToSql(sql, " ", args)
@@ -145,6 +153,31 @@ func (d *insertData) appendSelectToSQL(w io.Writer, args []interface{}) ([]inter
 	return args, nil
 }
 
+func (d *insertData) appendOnConflictToSQL(w io.Writer, args []interface{}) ([]interface{}, error) {
+	if len(d.OnConflictSetClauses) == 0 {
+		return args, errors.New("on conflict clause for insert statements are not set")
+	}
+
+	io.WriteString(w, d.OnConflictFormat.String(d.OnConflictKey))
+
+	setSqls := make([]string, len(d.OnConflictSetClauses))
+	for i, setClause := range d.OnConflictSetClauses {
+		var valSql string
+		e, isExpr := setClause.value.(expr)
+		if isExpr {
+			valSql = e.sql
+			args = append(args, e.args...)
+		} else {
+			valSql = "?"
+			args = append(args, setClause.value)
+		}
+		setSqls[i] = fmt.Sprintf("%s = %s", setClause.column, valSql)
+	}
+	io.WriteString(w, strings.Join(setSqls, ", "))
+
+	return args, nil
+}
+
 // Builder
 
 // InsertBuilder builds SQL INSERT statements.
@@ -160,6 +193,12 @@ func init() {
 // query.
 func (b InsertBuilder) PlaceholderFormat(f PlaceholderFormat) InsertBuilder {
 	return builder.Set(b, "PlaceholderFormat", f).(InsertBuilder)
+}
+
+// OnConflictFormat sets OnConflictFormat (e.g. ON CONFLICT/ON DUPLICATE KEY)
+// for the query.
+func (b InsertBuilder) OnConflictFormat(f OnConflictFormat) InsertBuilder {
+	return builder.Set(b, "OnConflictFormat", f).(InsertBuilder)
 }
 
 // Runner methods
@@ -255,4 +294,72 @@ func (b InsertBuilder) SetMap(clauses map[string]interface{}) InsertBuilder {
 // If Values and Select are used, then Select has higher priority
 func (b InsertBuilder) Select(sb SelectBuilder) InsertBuilder {
 	return builder.Set(b, "Select", &sb).(InsertBuilder)
+}
+
+// OnConflictKey specify the primary key or columns for the ON CONFLICT DO UPDATE SET clause.
+func (b InsertBuilder) OnConflictKey(columns ...string) InsertBuilder {
+	for _, col := range columns {
+		b = builder.Append(b, "OnConflictKey", col).(InsertBuilder)
+	}
+	return b
+}
+
+// OnConflictSet adds ON CONFLICT DO UPDATE SET clause to the query.
+func (b InsertBuilder) OnConflictSet(column string, value interface{}) InsertBuilder {
+	return builder.Append(b, "OnConflictSetClauses", setClause{column: column, value: value}).(InsertBuilder)
+}
+
+// OnConflictSetSetMap is a convenience method which calls .Set for each key/value pair in clauses.
+func (b InsertBuilder) OnConflictSetSetMap(clauses map[string]interface{}) InsertBuilder {
+	keys := make([]string, len(clauses))
+	i := 0
+	for key := range clauses {
+		keys[i] = key
+		i++
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		val, _ := clauses[key]
+		b = b.OnConflictSet(key, val)
+	}
+	return b
+}
+
+// OnConflictFormat
+
+// OnConflictFormat interface. Encapsulate different phrases used for ON CONFLICT.
+type OnConflictFormat interface {
+	String(cols []string) string
+}
+
+// Global variables for different OnConflictFormats
+var (
+	OnConflict = onConflictFormat{}
+
+	OnConflictWithKey = onConflictWithKeyFormat{}
+
+	OnDuplicate = onDuplicateFormat{}
+)
+
+type onConflictFormat struct{}
+type onConflictWithKeyFormat struct{}
+type onDuplicateFormat struct{}
+
+// String generates the string: ON CONFLICT DO UPDATE SET
+func (onConflictFormat) String(cols []string) string {
+	return " ON CONFLICT DO UPDATE SET "
+}
+
+// String generates the string: ON CONFLICT(col1,col2) DO UPDATE SET
+func (onConflictWithKeyFormat) String(cols []string) string {
+	key := ""
+	if len(cols) > 0 {
+		key = fmt.Sprintf(" (%s)", strings.Join(cols, ","))
+	}
+	return fmt.Sprintf(" ON CONFLICT%s DO UPDATE SET ", key)
+}
+
+// String generates the string: ON DUPLICATE KEY UPDATE
+func (onDuplicateFormat) String(cols []string) string {
+	return " ON DUPLICATE KEY UPDATE "
 }
