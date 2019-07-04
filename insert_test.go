@@ -115,13 +115,13 @@ func TestInsertOnConflictBuilderToSql(t *testing.T) {
 func TestInsertBuilderOnConflictFormat(t *testing.T) {
 	b := Insert("test").Values(1, 2).OnConflictSet("a", 1)
 
-	sql, _, _ := b.OnConflictFormat(OnConflict).ToSql()
-	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON CONFLICT DO UPDATE SET a = ?", sql)
-
-	sql, _, _ = b.OnConflictFormat(OnDuplicate).ToSql()
+	sql, _, _ := b.OnConflictFormat(OnDuplicate).ToSql()
 	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON DUPLICATE KEY UPDATE a = ?", sql)
 
-	sql, _, _ = b.OnConflictFormat(OnConflictWithKey).OnConflictKey("id", "method").ToSql()
+	sql, _, _ = b.OnConflictFormat(OnConflict).ToSql()
+	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON CONFLICT DO UPDATE SET a = ?", sql)
+
+	sql, _, _ = b.OnConflictFormat(OnConflict).OnConflictKey("id", "method").ToSql()
 	assert.Equal(t, "INSERT INTO test VALUES (?,?) ON CONFLICT (id,method) DO UPDATE SET a = ?", sql)
 
 	b = Insert("test").Values(1, 2).OnConflictFormat(OnDuplicate)
