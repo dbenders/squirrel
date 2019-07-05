@@ -334,24 +334,15 @@ type OnConflictFormat interface {
 
 // Global variables for different OnConflictFormats
 var (
-	OnConflict = onConflictFormat{}
-
-	OnConflictWithKey = onConflictWithKeyFormat{}
-
+	OnConflict  = onConflictFormat{}
 	OnDuplicate = onDuplicateFormat{}
 )
 
 type onConflictFormat struct{}
-type onConflictWithKeyFormat struct{}
 type onDuplicateFormat struct{}
 
-// String generates the string: ON CONFLICT DO UPDATE SET
-func (onConflictFormat) String(cols []string) string {
-	return " ON CONFLICT DO UPDATE SET "
-}
-
 // String generates the string: ON CONFLICT(col1,col2) DO UPDATE SET
-func (onConflictWithKeyFormat) String(cols []string) string {
+func (onConflictFormat) String(cols []string) string {
 	key := ""
 	if len(cols) > 0 {
 		key = fmt.Sprintf(" (%s)", strings.Join(cols, ","))

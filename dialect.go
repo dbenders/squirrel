@@ -47,4 +47,4 @@ func (d sqlite3Dialect) PlaceholderFormat() PlaceholderFormat    { return Questi
 // OnConflictFormat is the standard on conflict format for each dialect
 func (d mySQLDialect) OnConflictFormat() OnConflictFormat      { return OnDuplicate }
 func (d postgreSQLDialect) OnConflictFormat() OnConflictFormat { return OnConflict }
-func (d sqlite3Dialect) OnConflictFormat() OnConflictFormat    { return OnConflictWithKey }
+func (d sqlite3Dialect) OnConflictFormat() OnConflictFormat    { return OnConflict }
